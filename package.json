@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "Standalone, agent-agnostic PreToolUse safety gate for Claude Code: an autonomy-tier policy engine, a fail-closed bash allowlist, and a hook that turns dangerous tool calls into one-shot approvals.",
   "license": "MIT",
+  "author": { "name": "Enrico Deleo", "url": "https://enricodeleo.com" },
   "type": "module",
   "engines": {
     "node": ">=18"

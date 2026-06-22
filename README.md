@@ -167,3 +167,7 @@ chaining and should be used sparingly.
 ## License
 
 MIT — Copyright (c) 2026 justfortytwo.
+
+---
+
+Created and maintained by [**Enrico Deleo**](https://enricodeleo.com).
