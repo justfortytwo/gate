@@ -4,6 +4,8 @@
   "description": "Standalone, agent-agnostic PreToolUse safety gate for Claude Code: an autonomy-tier policy engine, a fail-closed bash allowlist, and a hook that turns dangerous tool calls into one-shot approvals.",
   "license": "MIT",
   "author": { "name": "Enrico Deleo", "url": "https://enricodeleo.com" },
+  "homepage": "https://forty-two.it",
+  "repository": { "type": "git", "url": "git+https://github.com/justfortytwo/vogon.git" },
   "type": "module",
   "engines": {
     "node": ">=18"
@@ -18,7 +20,7 @@
     "./gate-hook": "./dist/gate-hook.js"
   },
   "bin": {
-    "justfortytwo-gate-hook": "./dist/gate-hook.js"
+    "fortytwo-gate-hook": "./dist/gate-hook.js"
   },
   "files": [
     "dist",

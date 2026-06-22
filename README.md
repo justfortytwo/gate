@@ -166,7 +166,7 @@ chaining and should be used sparingly.
 
 ## License
 
-MIT — Copyright (c) 2026 justfortytwo.
+MIT — Copyright (c) 2026 Enrico Deleo.
 
 ---
 
