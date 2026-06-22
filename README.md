@@ -1,4 +1,4 @@
-# @justfortytwo/gate
+# @justfortytwo/vogon
 
 A standalone, agent-agnostic **PreToolUse safety gate** for Claude Code.
 
@@ -32,10 +32,10 @@ stop and wait for you, while genuinely safe, known operations stay fast.
 ## Install
 
 ```sh
-npm install @justfortytwo/gate
+npm install @justfortytwo/vogon
 ```
 
-`@justfortytwo/gate` is a leaf package — it has **no `@justfortytwo/*` peer
+`@justfortytwo/vogon` is a leaf package — it has **no `@justfortytwo/*` peer
 dependencies**.
 
 ## Use as a Claude Code plugin (recommended)
@@ -72,7 +72,7 @@ Add to `.claude/settings.json`:
       {
         "matcher": "*",
         "hooks": [
-          { "type": "command", "command": "node node_modules/@justfortytwo/gate/dist/gate-hook.js" }
+          { "type": "command", "command": "node node_modules/@justfortytwo/vogon/dist/gate-hook.js" }
         ]
       }
     ]
@@ -102,7 +102,7 @@ import {
   loadManifest,
   decide,
   JsonlApprovalStore,
-} from '@justfortytwo/gate';
+} from '@justfortytwo/vogon';
 
 const manifest = loadManifest('.claude/policy/capabilities.toml');
 const store = new JsonlApprovalStore('.gate/approvals.jsonl');
@@ -131,7 +131,7 @@ a principled trusted/untrusted boundary.
 ## The `policySchema` contract: `POLICY_SCHEMA_VERSION`
 
 ```ts
-import { POLICY_SCHEMA_VERSION } from '@justfortytwo/gate'; // 1
+import { POLICY_SCHEMA_VERSION } from '@justfortytwo/vogon'; // 1
 ```
 
 `POLICY_SCHEMA_VERSION` is the version of the **`policySchema` contract**: the

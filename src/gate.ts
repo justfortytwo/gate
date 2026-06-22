@@ -5,11 +5,11 @@
 // ApprovalStore for the durable one-shot record and an optional AuditLogger for
 // the trail, so it carries no database or host-specific code itself.
 //
-//   TODO(extract): the original host backed ApprovalStore/AuditLogger with its own
+//   TODO(wire): the original host backed ApprovalStore/AuditLogger with its own
 //   transactional store (a memory/DB package). That binding belongs to a host
-//   integration package — e.g. @justfortytwo/memory would export an ApprovalStore
-//   implementation and wire it in. The gate ships only the in-memory + JSONL
-//   stores below so it stands alone.
+//   integration package — @justfortytwo/guide exports an ApprovalStore
+//   implementation (see its vogon-approval-store.ts) and wires it in. The gate
+//   ships only the in-memory + JSONL stores below so it stands alone.
 
 import { readFileSync } from 'node:fs';
 import { resolve, relative, isAbsolute } from 'node:path';
