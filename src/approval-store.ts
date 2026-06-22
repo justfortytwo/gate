@@ -81,6 +81,18 @@ function nowIso(): string {
 }
 
 /**
+ * Fail-closed transition guard for out-of-band decisions. Only an undecided
+ * (pending) call may be approved or denied; an approval may still be revoked
+ * (-> denied) before it is consumed. Terminal states (executed/denied/expired)
+ * are immutable, so `approve` can never resurrect a spent or denied one-shot.
+ */
+function canDecide(current: ApprovalStatus, next: 'approved' | 'denied'): boolean {
+  if (current === 'pending') return true;
+  if (current === 'approved' && next === 'denied') return true;
+  return false;
+}
+
+/**
  * Process-local store. Good enough for a single hook invocation that both stages
  * and (on a later turn) consumes — but only when the hook process is long-lived.
  * Most Claude Code hooks are one-shot processes, so prefer JsonlApprovalStore for
@@ -121,7 +133,7 @@ export class InMemoryApprovalStore implements ApprovalStore {
 
   async setDecisionByToolUseId(toolUseId: string, status: 'approved' | 'denied', _by?: string): Promise<boolean> {
     const row = this.byToolUse.get(toolUseId);
-    if (!row) return false;
+    if (!row || !canDecide(row.status, status)) return false;
     row.status = status;
     row.updated_at = nowIso();
     return true;
@@ -206,7 +218,7 @@ export class JsonlApprovalStore implements ApprovalStore {
   async setDecisionByToolUseId(toolUseId: string, status: 'approved' | 'denied', _by?: string): Promise<boolean> {
     const rows = this.readAll();
     const row = rows.find((r) => r.tool_use_id === toolUseId);
-    if (!row) return false;
+    if (!row || !canDecide(row.status, status)) return false;
     row.status = status;
     row.updated_at = nowIso();
     this.writeAll(rows);

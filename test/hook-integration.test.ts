@@ -69,6 +69,17 @@ describe('gate-hook (subprocess)', () => {
     expect(hook(ext, dir).permissionDecision).toBe('deny');          // already executed
   });
 
+  it('the CLI cannot resurrect a consumed one-shot (no double-execution)', () => {
+    const dir = newProject();
+    const ext = evt({ tool_name: 'mcp__messaging__send', tool_input: { to: 'x' }, tool_use_id: 'tu_r' }, dir);
+    hook(ext, dir);                                            // defer + stage
+    cli(['approve', 'tu_r'], dir);                            // approve
+    expect(hook(ext, dir).permissionDecision).toBe('allow');  // one-shot consumed
+    expect(hook(ext, dir).permissionDecision).toBe('deny');   // executed -> denied
+    expect(cli(['approve', 'tu_r'], dir).status).not.toBe(0); // re-approve refused
+    expect(hook(ext, dir).permissionDecision).toBe('deny');   // STILL denied — invariant holds
+  });
+
   it('the CLI can list and deny a staged approval', () => {
     const dir = newProject();
     hook(evt({ tool_name: 'mcp__messaging__send', tool_input: { to: 'y' }, tool_use_id: 'tu_y' }, dir), dir);

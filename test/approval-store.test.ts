@@ -48,6 +48,25 @@ describe.each(stores)('%s — shared contract', (_name, make) => {
     const store = make();
     expect(await store.setDecisionByToolUseId('nope', 'approved')).toBe(false);
   });
+
+  it('refuses to resurrect a consumed (executed) one-shot — approve-after-execute is a no-op', async () => {
+    const store = make();
+    await store.addPending(pending);
+    await store.setDecisionByToolUseId('tu_1', 'approved');
+    await store.markExecutedByToolUseId('tu_1'); // consumed -> executed
+
+    expect(await store.setDecisionByToolUseId('tu_1', 'approved')).toBe(false);
+    expect((await store.getByToolUseId('tu_1'))!.status).toBe('executed');
+  });
+
+  it('refuses to flip a denied record back to approved — deny stays denied', async () => {
+    const store = make();
+    await store.addPending(pending);
+    await store.setDecisionByToolUseId('tu_1', 'denied');
+
+    expect(await store.setDecisionByToolUseId('tu_1', 'approved')).toBe(false);
+    expect((await store.getByToolUseId('tu_1'))!.status).toBe('denied');
+  });
 });
 
 describe('JsonlApprovalStore — durability', () => {

@@ -53,4 +53,27 @@ describe('runCli', () => {
     expect(code).toBe(2);
     expect(err.text()).toMatch(/usage/i);
   });
+
+  it('approve refuses a consumed one-shot and exits 1', async () => {
+    const store = await staged();
+    await store.setDecisionByToolUseId('tu_1', 'approved');
+    await store.markExecutedByToolUseId('tu_1'); // consumed
+    const code = await runCli(['approve', 'tu_1'], { store, out: sink().write, err: sink().write });
+    expect(code).toBe(1);
+    expect((await store.getByToolUseId('tu_1'))!.status).toBe('executed');
+  });
+
+  it('fails closed (exit 1) when the store throws, rather than rejecting', async () => {
+    const boom: ApprovalStore = {
+      addPending: async () => { throw new Error('boom'); },
+      getByToolUseId: async () => { throw new Error('boom'); },
+      markExecutedByToolUseId: async () => { throw new Error('boom'); },
+      setDecisionByToolUseId: async () => { throw new Error('boom'); },
+      list: async () => { throw new Error('boom'); },
+    };
+    const err = sink();
+    const code = await runCli(['list'], { store: boom, out: sink().write, err: err.write });
+    expect(code).toBe(1);
+    expect(err.text()).toMatch(/error/i);
+  });
 });

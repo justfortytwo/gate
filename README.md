@@ -107,8 +107,16 @@ vogon approve <tool_use_id>  # allow it once (the agent's next re-fire consumes 
 vogon deny <tool_use_id>     # block it
 ```
 
-Run it from the project root — it reads the same `GATE_APPROVALS` path the hook
-writes. With the package installed, invoke it as `vogon` (or `npx @justfortytwo/vogon`).
+Run it from the **same project root** the agent runs in: the default
+`.gate/approvals.jsonl` is resolved relative to the current directory, so a
+different cwd points at a different (or empty) store. `vogon list` prints the
+resolved store path so a mismatch is obvious; set `GATE_APPROVALS` to an absolute
+path to remove the ambiguity. With the package installed, invoke it as `vogon`
+(or `npx @justfortytwo/vogon`).
+
+`approve`/`deny` only act on a **pending** call — an already-consumed (executed) or
+denied one-shot is immutable, so an approval can never be resurrected into a second
+run.
 
 ## Use as a library
 

@@ -11,6 +11,12 @@ const approvalsPath = process.env.GATE_APPROVALS
   ? resolve(root, process.env.GATE_APPROVALS)
   : resolve(root, '.gate', 'approvals.jsonl');
 
-runCli(process.argv.slice(2), { store: new JsonlApprovalStore(approvalsPath) }).then(
-  (code) => process.exit(code),
-);
+runCli(process.argv.slice(2), {
+  store: new JsonlApprovalStore(approvalsPath),
+  storeLabel: approvalsPath,
+})
+  .then((code) => process.exit(code))
+  .catch((e: unknown) => {
+    process.stderr.write(`vogon error (fail-closed): ${e instanceof Error ? e.message : String(e)}\n`);
+    process.exit(1);
+  });
