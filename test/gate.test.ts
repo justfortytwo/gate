@@ -87,3 +87,34 @@ describe('decide — one-shot approval state machine', () => {
     expect(status.permission).toBe('allow');
   });
 });
+
+describe('classify — edge cases', () => {
+  it('editing a guarded file is irreversible; an ordinary edit is not', () => {
+    expect(classify(m, 'Write', { file_path: '.claude/policy/capabilities.toml' })).toBe('irreversible');
+    expect(classify(m, 'Write', { file_path: 'src/app.ts' })).toBe('internal');
+  });
+  it('unknown tools fall back to the default tier', () => {
+    expect(classify(m, 'SomeUnknownTool', {})).toBe('external'); // default_tier
+  });
+});
+
+describe('decide — additional paths', () => {
+  const ext = { toolName: 'mcp__messaging__send', toolInput: { to: 'x' }, toolUseId: 'tu_d' };
+
+  it('a denied record denies on re-fire', async () => {
+    expect((await decide(m, ext, { store })).permission).toBe('defer');
+    await store.setDecisionByToolUseId('tu_d', 'denied');
+    expect((await decide(m, ext, { store })).permission).toBe('deny');
+  });
+
+  it('a benign bash command matching the allowlist is allowed without approval', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'gate-'));
+    const allow = join(dir, 'bash-allowlist.jsonl');
+    writeFileSync(allow, `${JSON.stringify({ command_glob: 'ls -la', expires_at: '2999-01-01T00:00:00.000Z' })}\n`);
+    const d = await decide(m, {
+      toolName: 'Bash', toolInput: { command: 'ls -la' },
+      toolUseId: 'tu_ls', cwd: dir, bashAllowlistPath: allow,
+    }, { store });
+    expect(d.permission).toBe('allow');
+  });
+});

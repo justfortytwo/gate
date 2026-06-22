@@ -89,11 +89,26 @@ overrides a permissive `permissions.allow` list.
 
 1. The agent calls an `external`/`irreversible` tool. The gate **defers** and
    stages a pending one-shot keyed by the call's `tool_use_id`.
-2. You record the decision out of band — append `approved` for that `tool_use_id`
-   to the approvals store, or call `setDecisionByToolUseId(...)` from a companion
-   tool.
+2. You clear it out of band with the bundled CLI — **`vogon approve <tool_use_id>`**
+   (or `vogon deny <tool_use_id>`). A host integration can instead call
+   `setDecisionByToolUseId(...)` on its own store.
 3. The agent re-fires the same call. The gate **consumes the one-shot exactly
    once** and allows it; any later re-fire is denied.
+
+## Clearing approvals — the `vogon` CLI
+
+When the gate defers a call it stages a one-shot in the approvals store
+(`GATE_APPROVALS`, default `.gate/approvals.jsonl`). The bundled `vogon` command
+lets you clear it standalone — no host required:
+
+```sh
+vogon list                   # what's waiting: status, tier, tool_use_id, target
+vogon approve <tool_use_id>  # allow it once (the agent's next re-fire consumes it)
+vogon deny <tool_use_id>     # block it
+```
+
+Run it from the project root — it reads the same `GATE_APPROVALS` path the hook
+writes. With the package installed, invoke it as `vogon` (or `npx @justfortytwo/vogon`).
 
 ## Use as a library
 

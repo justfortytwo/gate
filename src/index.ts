@@ -32,6 +32,10 @@ export type {
   DecideOptions,
 } from './gate.js';
 
+// --- approval-clearing CLI (standalone approve/deny/list) ---
+export { runCli } from './cli.js';
+export type { CliOptions } from './cli.js';
+
 // --- durable one-shot approval store (the host-integration seam) ---
 export {
   JsonlApprovalStore,

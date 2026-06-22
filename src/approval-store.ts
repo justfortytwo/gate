@@ -48,6 +48,8 @@ export interface ApprovalStore {
   markExecutedByToolUseId(toolUseId: string): Promise<boolean>;
   /** Record an out-of-band decision (approve/deny) against a staged approval. */
   setDecisionByToolUseId(toolUseId: string, status: 'approved' | 'denied', by?: string): Promise<boolean>;
+  /** All staged approvals with their current status (most recent state per tool_use_id). */
+  list(): Promise<PendingApproval[]>;
 }
 
 export interface AuditEntry {
@@ -123,6 +125,10 @@ export class InMemoryApprovalStore implements ApprovalStore {
     row.status = status;
     row.updated_at = nowIso();
     return true;
+  }
+
+  async list(): Promise<PendingApproval[]> {
+    return [...this.byToolUse.values()];
   }
 }
 
@@ -205,5 +211,9 @@ export class JsonlApprovalStore implements ApprovalStore {
     row.updated_at = nowIso();
     this.writeAll(rows);
     return true;
+  }
+
+  async list(): Promise<PendingApproval[]> {
+    return this.readAll();
   }
 }
