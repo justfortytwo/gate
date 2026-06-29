@@ -60,6 +60,7 @@ project root the agent runs in):
 | `GATE_MANIFEST` | `.claude/policy/capabilities.toml` | capability manifest TOML |
 | `GATE_BASH_ALLOWLIST` | `rules/bash-allowlist.jsonl` | bash allowlist JSONL |
 | `GATE_APPROVALS` | `.gate/approvals.jsonl` | durable one-shot approval store |
+| `GATE_ACTOR` | `agent` | label recorded as the actor in the audit log |
 
 ## Use as a hook without the plugin
 
@@ -80,10 +81,20 @@ Add to `.claude/settings.json`:
 }
 ```
 
-The hook emits a standard Claude Code `permissionDecision` (`allow` | `deny` and a
-`defer`-style hold) with a human-readable reason. The gate is the safety
-authority; with `deny > defer > ask > allow`, a `defer`/`deny` from the gate still
-overrides a permissive `permissions.allow` list.
+The hook reads the tool event on stdin and writes one JSON object on stdout:
+
+```json
+{ "hookSpecificOutput": { "hookEventName": "PreToolUse", "permissionDecision": "allow | deny | defer", "permissionDecisionReason": "<human-readable reason>" } }
+```
+
+`permissionDecision` is exactly one of `allow`, `deny`, or `defer`. `allow` and
+`deny` resolve the call immediately. `defer` is the gate asking the host to **hold
+the call for a one-shot human approval** rather than run it: the gate stages a
+pending one-shot and emits `defer`, and the defer → approval → re-fire loop only
+completes if the host actually pauses on that decision (re-firing the same call
+once the approval is recorded). The gate emits the decision; it cannot itself stop
+a host that ignores `defer`. Approvals are cleared out of band via the bundled
+`fortytwo-gate` CLI (see below).
 
 ### How an approval flows
 
