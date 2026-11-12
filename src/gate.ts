@@ -32,6 +32,10 @@ export interface Manifest {
   prefixes: Array<{ prefix: string; tier: Tier }>; // trailing-"*" globs, e.g. mcp__messaging__*
   bash: Array<{ re: RegExp; tier: Tier }>;
   guardFiles: Set<string>;              // repo-relative paths whose edit = irreversible
+  /** Repo-relative directory prefixes (each ends in "/"); editing anything below one = irreversible. */
+  guardDirs?: string[];
+  /** Editing any path outside the project root = irreversible. */
+  guardOutside?: boolean;
 }
 
 export interface GateContext {
@@ -157,8 +161,13 @@ export function parseManifest(src: string): Manifest {
   const bashSection = (o['bash'] ?? {}) as Record<string, unknown>;
   const bash = Object.entries(bashSection).map(([k, v]) => ({ re: new RegExp(k), tier: asTier(v, 'external') }));
   const guardSection = (o['guard'] ?? {}) as Record<string, unknown>;
-  const files = Array.isArray(guardSection['files']) ? (guardSection['files'] as string[]) : [];
-  return { defaultTier, tiers, prefixes, bash, guardFiles: new Set(files) };
+  const entries = (Array.isArray(guardSection['files']) ? (guardSection['files'] as string[]) : [])
+    .map((f) => f.replace(/^\.\//, '')).filter((f) => f.length > 0);
+  // An entry ending in "/" guards the whole directory; "/" alone would guard nothing useful.
+  const guardDirs = entries.filter((f) => f.endsWith('/') && f.length > 1);
+  const guardFiles = new Set(entries.filter((f) => !f.endsWith('/')));
+  const guardOutside = guardSection['outside_project'] === 'true' || guardSection['outside_project'] === true;
+  return { defaultTier, tiers, prefixes, bash, guardFiles, guardDirs, guardOutside };
 }
 
 export function loadManifest(path: string): Manifest {
@@ -168,6 +177,22 @@ export function loadManifest(path: string): Manifest {
 // --- classification ---
 
 const EDIT_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
+
+/** The path an edit tool is about to write, if any (NotebookEdit names it `notebook_path`). */
+function editTarget(toolInput: Record<string, unknown>): string | undefined {
+  for (const k of ['file_path', 'notebook_path']) {
+    const v = toolInput[k];
+    if (typeof v === 'string' && v.length > 0) return v;
+  }
+  return undefined;
+}
+
+/** True when file_path resolves outside the project root. */
+function outsideRoot(file_path: string, cwd?: string): boolean {
+  const base = resolve(cwd ?? '.');
+  const rel = relative(base, isAbsolute(file_path) ? file_path : resolve(base, file_path));
+  return rel.startsWith('..') || isAbsolute(rel);
+}
 
 /** Normalize an arbitrary file_path to project-relative against cwd. */
 function repoRel(file_path: string, cwd?: string): string {
@@ -180,9 +205,12 @@ function repoRel(file_path: string, cwd?: string): string {
 
 export function classify(m: Manifest, toolName: string, toolInput: Record<string, unknown>, cwd?: string): Tier {
   // 1. Protect the guard: editing a guarded file is irreversible.
-  if (EDIT_TOOLS.has(toolName) && typeof toolInput['file_path'] === 'string') {
-    const rel = repoRel(toolInput['file_path'], cwd);
+  const target = EDIT_TOOLS.has(toolName) ? editTarget(toolInput) : undefined;
+  if (target !== undefined) {
+    const rel = repoRel(target, cwd).split('\\').join('/');
     if (m.guardFiles.has(rel)) return 'irreversible';
+    if (m.guardDirs?.some((dir) => rel.startsWith(dir))) return 'irreversible';
+    if (m.guardOutside && outsideRoot(target, cwd)) return 'irreversible';
   }
   // 2. Bash: the base tier is the FLOOR; [bash] patterns only ever elevate.
   //    Bash fails closed — an unmatched command stays at the base tier (external,

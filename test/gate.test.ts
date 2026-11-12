@@ -93,6 +93,43 @@ describe('classify — edge cases', () => {
     expect(classify(m, 'Write', { file_path: '.claude/policy/capabilities.toml' })).toBe('irreversible');
     expect(classify(m, 'Write', { file_path: 'src/app.ts' })).toBe('internal');
   });
+  it('an entry ending in / guards everything below that directory', () => {
+    const g = parseManifest(`
+[tiers]
+"Write" = "internal"
+"Edit" = "internal"
+"NotebookEdit" = "internal"
+[guard]
+files = ["node_modules/", "./.gate/", ".env", "/"]
+`);
+    const root = '/proj';
+    expect(classify(g, 'Write', { file_path: 'node_modules/@justfortytwo/gate/dist/gate-hook.js' }, root)).toBe('irreversible');
+    expect(classify(g, 'Edit', { file_path: '/proj/node_modules/x/index.js' }, root)).toBe('irreversible');
+    expect(classify(g, 'Write', { file_path: 'notes/../.gate/approvals.jsonl' }, root)).toBe('irreversible');
+    expect(classify(g, 'Write', { file_path: '.env' }, root)).toBe('irreversible');
+    expect(classify(g, 'NotebookEdit', { notebook_path: 'node_modules/a.ipynb' }, root)).toBe('irreversible');
+    // Not below a guarded directory: a look-alike name, and (without outside_project) other roots.
+    expect(classify(g, 'Write', { file_path: 'node_modules_notes/a.md' }, root)).toBe('internal');
+    expect(classify(g, 'Write', { file_path: 'notes/a.md' }, root)).toBe('internal');
+    expect(classify(g, 'Write', { file_path: '/elsewhere/a.md' }, root)).toBe('internal');
+  });
+  it('outside_project = true holds edits outside the project root', () => {
+    const g = parseManifest(`
+[tiers]
+"Write" = "internal"
+"Read" = "read"
+[guard]
+files = []
+outside_project = true
+`);
+    const root = '/proj';
+    expect(classify(g, 'Write', { file_path: '/home/me/.claude/settings.json' }, root)).toBe('irreversible');
+    expect(classify(g, 'Write', { file_path: '../other/a.md' }, root)).toBe('irreversible');
+    expect(classify(g, 'Write', { file_path: '/proj-sibling/a.md' }, root)).toBe('irreversible');
+    expect(classify(g, 'Write', { file_path: '/proj/notes/a.md' }, root)).toBe('internal');
+    expect(classify(g, 'Write', { file_path: 'notes/a.md' }, root)).toBe('internal');
+    expect(classify(g, 'Read', { file_path: '/etc/hosts' }, root)).toBe('read'); // reading is not editing
+  });
   it('unknown tools fall back to the default tier', () => {
     expect(classify(m, 'SomeUnknownTool', {})).toBe('external'); // default_tier
   });

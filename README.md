@@ -53,13 +53,15 @@ Then, in the project the agent operates in, provide:
   (copy `examples/bash-allowlist.jsonl`).
 
 Paths are configurable via environment variables (all resolved relative to the
-project root the agent runs in):
+project root: `CLAUDE_PROJECT_DIR`, which Claude Code sets for every hook, so the
+same files apply after the session changes directory; without it, the hook
+event's `cwd`):
 
 | Env var | Default | Purpose |
 | --- | --- | --- |
 | `GATE_MANIFEST` | `.claude/policy/capabilities.toml` | capability manifest TOML |
 | `GATE_BASH_ALLOWLIST` | `rules/bash-allowlist.jsonl` | bash allowlist JSONL |
-| `GATE_APPROVALS` | `.gate/approvals.jsonl` | durable one-shot approval store |
+| `GATE_APPROVALS` | `.gate/approvals.jsonl` | durable one-shot approval store; `approvalsPath(root, env?)` returns the resolved path for integrations that record decisions |
 | `GATE_ACTOR` | `agent` | label recorded as the actor in the audit log |
 
 ## Use as a hook without the plugin
@@ -189,6 +191,13 @@ A small TOML file (see `examples/capabilities.toml`):
   (and double as the denylist). Highest match wins; patterns only ever raise.
 - `[guard].files` — project-relative paths whose edit is `irreversible`; point this
   at the manifest, settings, and allowlist so the gate can't be silently weakened.
+  An entry ending in `/` guards everything below that directory (e.g.
+  `"node_modules/"`, so the hook's own code cannot be rewritten).
+- `[guard].outside_project = true` — editing any path outside the project root is
+  `irreversible` too (user-level settings, other repositories). Off unless set.
+
+The guard covers the file-writing tools (`Write`, `Edit`, `NotebookEdit`) and
+compares paths as written: it does not resolve symbolic links.
 
 ## Bash allowlist format
 

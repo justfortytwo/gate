@@ -39,6 +39,7 @@ export type { CliOptions } from './cli.js';
 // --- durable one-shot approval store (the host-integration seam) ---
 export {
   JsonlApprovalStore,
+  approvalsPath,
 } from './approval-store.js';
 export type {
   ApprovalStore,

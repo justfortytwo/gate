@@ -18,6 +18,9 @@ default_tier = "external"
 "mcp__messaging__*" = "external"
 `;
 
+// The suite may itself run under Claude Code; the hook must only see what a test sets.
+const { CLAUDE_PROJECT_DIR: _ignored, ...BASE_ENV } = process.env;
+
 function newProject(): string {
   const dir = mkdtempSync(join(tmpdir(), 'gate-e2e-'));
   mkdirSync(join(dir, '.claude', 'policy'), { recursive: true });
@@ -30,7 +33,7 @@ function hook(event: Record<string, unknown>, cwd: string, env: Record<string, s
     input: JSON.stringify(event),
     cwd,
     encoding: 'utf8',
-    env: { ...process.env, ...env },
+    env: { ...BASE_ENV, ...env },
   });
   return JSON.parse(r.stdout).hookSpecificOutput as { permissionDecision: string; permissionDecisionReason: string };
 }
@@ -93,5 +96,19 @@ describe('gate-hook (subprocess)', () => {
     const d = hook(evt({ tool_name: 'mcp__messaging__send', tool_use_id: 'tu_z' }, dir), dir, { GATE_MANIFEST: 'does-not-exist.toml' });
     expect(d.permissionDecision).toBe('deny');
     expect(d.permissionDecisionReason).toMatch(/fail-closed/);
+  });
+
+  it('uses CLAUDE_PROJECT_DIR as the root after the session changed directory', () => {
+    const dir = newProject();
+    const sub = join(dir, 'notes');
+    mkdirSync(sub);
+    const env = { CLAUDE_PROJECT_DIR: dir };
+    // The manifest is found although the event's cwd has none.
+    expect(hook(evt({ tool_name: 'Read' }, sub), sub, env).permissionDecision).toBe('allow');
+    // The approval lands in the project's store, where the CLI (run from the root) clears it.
+    const ext = evt({ tool_name: 'mcp__messaging__send', tool_input: { to: 'x' }, tool_use_id: 'tu_sub' }, sub);
+    expect(hook(ext, sub, env).permissionDecision).toBe('defer');
+    expect(cli(['approve', 'tu_sub'], dir).status).toBe(0);
+    expect(hook(ext, sub, env).permissionDecision).toBe('allow');
   });
 });

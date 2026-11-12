@@ -6,7 +6,11 @@
 // Wired as a Claude Code plugin hook (hooks/hooks.json): PreToolUse matcher "*" ->
 // this command. It can also be wired directly from .claude/settings.json.
 //
-// Configuration (all optional, resolved relative to the project root = cwd):
+// The project root is CLAUDE_PROJECT_DIR (set by Claude Code for every hook), so the
+// policy, the allowlist and the approvals stay the same files after the session
+// changes directory; without it, the event's cwd.
+//
+// Configuration (all optional, resolved relative to the project root):
 //   GATE_MANIFEST          path to the capability manifest TOML
 //                          (default: .claude/policy/capabilities.toml)
 //   GATE_BASH_ALLOWLIST    path to the bash allowlist JSONL
@@ -17,7 +21,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadManifest, decide, type Decision } from './gate.js';
-import { JsonlApprovalStore } from './approval-store.js';
+import { JsonlApprovalStore, approvalsPath } from './approval-store.js';
 
 type Permission = Decision['permission'];
 
@@ -47,19 +51,16 @@ async function main(): Promise<void> {
   }
 
   try {
-    const root = resolve(evt.cwd ?? process.cwd());
+    const root = resolve(process.env.CLAUDE_PROJECT_DIR || evt.cwd || process.cwd());
     const manifestPath = process.env.GATE_MANIFEST
       ? resolve(root, process.env.GATE_MANIFEST)
       : resolve(root, '.claude', 'policy', 'capabilities.toml');
-    const approvalsPath = process.env.GATE_APPROVALS
-      ? resolve(root, process.env.GATE_APPROVALS)
-      : resolve(root, '.gate', 'approvals.jsonl');
     const bashAllowlistPath = process.env.GATE_BASH_ALLOWLIST
       ? resolve(root, process.env.GATE_BASH_ALLOWLIST)
       : undefined; // undefined -> gate uses its default (<root>/rules/bash-allowlist.jsonl)
 
     const m = loadManifest(manifestPath);
-    const store = new JsonlApprovalStore(approvalsPath);
+    const store = new JsonlApprovalStore(approvalsPath(root));
 
     const d = await decide(m, {
       toolName: evt.tool_name,

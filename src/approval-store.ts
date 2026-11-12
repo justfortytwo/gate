@@ -9,7 +9,18 @@
 //   opts.audit. The two implementations here keep the gate fully standalone.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, resolve } from 'node:path';
+
+/**
+ * Where the PreToolUse hook keeps its approvals for a project: GATE_APPROVALS
+ * (relative paths resolve against the project root) or <root>/.gate/approvals.jsonl.
+ * Anything that records decisions out of band (the CLI, a chat bridge) must use
+ * this same function, or it would write approvals the hook never reads.
+ */
+export function approvalsPath(root: string, env: NodeJS.ProcessEnv = process.env): string {
+  const custom = env['GATE_APPROVALS'];
+  return custom ? resolve(root, custom) : resolve(root, '.gate', 'approvals.jsonl');
+}
 
 export type ApprovalStatus = 'pending' | 'approved' | 'denied' | 'executed' | 'expired';
 
