@@ -11,8 +11,8 @@
 //   implementation (see its gate-approval-store.ts) and wires it in. The gate
 //   ships only the in-memory + JSONL stores below so it stands alone.
 
-import { readFileSync } from 'node:fs';
-import { resolve, relative, isAbsolute } from 'node:path';
+import { readFileSync, realpathSync } from 'node:fs';
+import { basename, dirname, join, resolve, relative, isAbsolute } from 'node:path';
 import { bashAllowlistPath, findBashAllowlistMatch } from './bash-allowlist.js';
 import {
   type ApprovalStore,
@@ -44,6 +44,8 @@ export interface GateContext {
   toolUseId?: string;
   sessionId?: string;
   cwd?: string;                         // project root, for guard-file rel normalization
+  /** Directory the tool itself resolves relative paths from (the session's cwd), when it differs from the root. */
+  toolCwd?: string;
   bashAllowlistPath?: string;
 }
 
@@ -178,39 +180,72 @@ export function loadManifest(path: string): Manifest {
 
 const EDIT_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
 
-/** The path an edit tool is about to write, if any (NotebookEdit names it `notebook_path`). */
-function editTarget(toolInput: Record<string, unknown>): string | undefined {
-  for (const k of ['file_path', 'notebook_path']) {
-    const v = toolInput[k];
-    if (typeof v === 'string' && v.length > 0) return v;
+/** Every path an edit tool names (NotebookEdit uses `notebook_path`); all of them are checked. */
+function editTargets(toolInput: Record<string, unknown>): string[] {
+  return ['file_path', 'notebook_path', 'path']
+    .map((k) => toolInput[k])
+    .filter((v): v is string => typeof v === 'string' && v.length > 0);
+}
+
+/**
+ * `abs` with symbolic links resolved: realpath of its deepest existing ancestor
+ * plus the part that does not exist yet (a file about to be created).
+ */
+function realish(abs: string): string {
+  let dir = abs;
+  const tail: string[] = [];
+  for (;;) {
+    try {
+      return join(realpathSync(dir), ...tail);
+    } catch {
+      const parent = dirname(dir);
+      if (parent === dir) return abs;
+      tail.unshift(basename(dir));
+      dir = parent;
+    }
   }
-  return undefined;
 }
 
-/** True when file_path resolves outside the project root. */
-function outsideRoot(file_path: string, cwd?: string): boolean {
-  const base = resolve(cwd ?? '.');
-  const rel = relative(base, isAbsolute(file_path) ? file_path : resolve(base, file_path));
-  return rel.startsWith('..') || isAbsolute(rel);
+/** `abs` relative to `root` with forward slashes, or null when it is outside. */
+function inside(root: string, abs: string): string | null {
+  const rel = relative(root, abs);
+  if (rel.startsWith('..') || isAbsolute(rel)) return null;
+  return rel.split('\\').join('/');
 }
 
-/** Normalize an arbitrary file_path to project-relative against cwd. */
-function repoRel(file_path: string, cwd?: string): string {
-  const base = cwd ?? '.';
-  const abs = isAbsolute(file_path) ? file_path : resolve(base, file_path);
-  let rel = relative(resolve(base), abs);
-  if (rel.startsWith('..')) rel = file_path; // outside project — compare as-is
-  return rel.replace(/^\.\//, '');
+/**
+ * Is writing `target` guarded? Checked on the path as written AND with symbolic
+ * links resolved, case-insensitively (a guard on ".env" must hold ".ENV" on
+ * macOS/Windows; on a case-sensitive filesystem this only over-guards).
+ */
+function guarded(m: Manifest, target: string, root: string, toolCwd: string): boolean {
+  const abs = isAbsolute(target) ? resolve(target) : resolve(toolCwd, target);
+  for (const rel of [inside(root, abs), inside(realish(root), realish(abs))]) {
+    if (rel === null) {
+      if (m.guardOutside) return true;
+      continue;
+    }
+    const lower = rel.toLowerCase();
+    for (const f of m.guardFiles) if (f.toLowerCase() === lower) return true;
+    if (m.guardDirs?.some((dir) => lower.startsWith(dir.toLowerCase()))) return true;
+  }
+  return false;
 }
 
-export function classify(m: Manifest, toolName: string, toolInput: Record<string, unknown>, cwd?: string): Tier {
-  // 1. Protect the guard: editing a guarded file is irreversible.
-  const target = EDIT_TOOLS.has(toolName) ? editTarget(toolInput) : undefined;
-  if (target !== undefined) {
-    const rel = repoRel(target, cwd).split('\\').join('/');
-    if (m.guardFiles.has(rel)) return 'irreversible';
-    if (m.guardDirs?.some((dir) => rel.startsWith(dir))) return 'irreversible';
-    if (m.guardOutside && outsideRoot(target, cwd)) return 'irreversible';
+export function classify(
+  m: Manifest,
+  toolName: string,
+  toolInput: Record<string, unknown>,
+  cwd?: string,
+  toolCwd?: string,
+): Tier {
+  // 1. Protect the guard: editing a guarded path is irreversible. A relative
+  //    path is resolved the way the tool resolves it (toolCwd), then placed
+  //    against the project root.
+  if (EDIT_TOOLS.has(toolName)) {
+    const root = resolve(cwd ?? '.');
+    const base = toolCwd ? resolve(toolCwd) : root;
+    if (editTargets(toolInput).some((t) => guarded(m, t, root, base))) return 'irreversible';
   }
   // 2. Bash: the base tier is the FLOOR; [bash] patterns only ever elevate.
   //    Bash fails closed — an unmatched command stays at the base tier (external,
@@ -263,7 +298,7 @@ export async function decide(
   const store = opts.store ?? defaultStore;
   const audit = opts.audit ?? new NullAuditLogger();
 
-  const tier = classify(m, ctx.toolName, ctx.toolInput, ctx.cwd);
+  const tier = classify(m, ctx.toolName, ctx.toolInput, ctx.cwd, ctx.toolCwd);
   const target = describeTarget(ctx.toolInput);
 
   if (AUTO.has(tier)) {

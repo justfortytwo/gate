@@ -68,6 +68,7 @@ async function main(): Promise<void> {
       toolUseId: evt.tool_use_id,
       sessionId: evt.session_id,
       cwd: root,
+      toolCwd: typeof evt.cwd === 'string' && evt.cwd ? evt.cwd : root,
       bashAllowlistPath,
     }, { store });
 

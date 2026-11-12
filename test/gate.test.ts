@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -129,6 +129,44 @@ outside_project = true
     expect(classify(g, 'Write', { file_path: '/proj/notes/a.md' }, root)).toBe('internal');
     expect(classify(g, 'Write', { file_path: 'notes/a.md' }, root)).toBe('internal');
     expect(classify(g, 'Read', { file_path: '/etc/hosts' }, root)).toBe('read'); // reading is not editing
+  });
+  describe('guard hardening', () => {
+    const g = parseManifest(`
+[tiers]
+"Write" = "internal"
+"NotebookEdit" = "internal"
+[guard]
+files = [".env", ".gate/"]
+outside_project = true
+`);
+    it('ignores letter case', () => {
+      expect(classify(g, 'Write', { file_path: '.ENV' }, '/proj')).toBe('irreversible');
+      expect(classify(g, 'Write', { file_path: '.Gate/approvals.jsonl' }, '/proj')).toBe('irreversible');
+    });
+    it('checks every path field, not only the first', () => {
+      expect(classify(g, 'NotebookEdit', { file_path: 'notes/a.md', notebook_path: '.env' }, '/proj')).toBe('irreversible');
+      expect(classify(g, 'Write', { file_path: 'notes/a.md', notebook_path: '/elsewhere/x' }, '/proj')).toBe('irreversible');
+    });
+    it('resolves a relative path from the directory the tool runs in', () => {
+      expect(classify(g, 'Write', { file_path: '../.env' }, '/proj', '/proj/sub')).toBe('irreversible');
+      expect(classify(g, 'Write', { file_path: '.env' }, '/proj', '/proj/sub')).toBe('internal'); // sub/.env
+      expect(classify(g, 'Write', { file_path: '../../x' }, '/proj', '/proj/sub')).toBe('irreversible'); // outside
+    });
+    it('follows symbolic links to a guarded path or out of the project', () => {
+      const base = mkdtempSync(join(tmpdir(), 'gate-guard-'));
+      try {
+        const root = join(base, 'proj');
+        mkdirSync(join(root, '.gate'), { recursive: true });
+        mkdirSync(join(base, 'outside'));
+        symlinkSync(join(root, '.gate'), join(root, 'innocent'));
+        symlinkSync(join(base, 'outside'), join(root, 'exit'));
+        expect(classify(g, 'Write', { file_path: 'innocent/approvals.jsonl' }, root)).toBe('irreversible');
+        expect(classify(g, 'Write', { file_path: join(root, 'exit', 'new', 'a.md') }, root)).toBe('irreversible');
+        expect(classify(g, 'Write', { file_path: 'notes/new/a.md' }, root)).toBe('internal');
+      } finally {
+        rmSync(base, { recursive: true, force: true });
+      }
+    });
   });
   it('unknown tools fall back to the default tier', () => {
     expect(classify(m, 'SomeUnknownTool', {})).toBe('external'); // default_tier

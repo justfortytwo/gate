@@ -196,8 +196,9 @@ A small TOML file (see `examples/capabilities.toml`):
 - `[guard].outside_project = true` — editing any path outside the project root is
   `irreversible` too (user-level settings, other repositories). Off unless set.
 
-The guard covers the file-writing tools (`Write`, `Edit`, `NotebookEdit`) and
-compares paths as written: it does not resolve symbolic links.
+The guard covers the file-writing tools (`Write`, `Edit`, `NotebookEdit`). A path
+is checked as written and with symbolic links resolved, without regard to letter
+case, and a relative path is resolved from the session's current directory.
 
 ## Bash allowlist format
 
