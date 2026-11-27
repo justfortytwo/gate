@@ -157,7 +157,8 @@ export function parseManifest(src: string): Manifest {
   const prefixes: Array<{ prefix: string; tier: Tier }> = [];
   const tiersSection = (o['tiers'] ?? {}) as Record<string, unknown>;
   for (const [k, v] of Object.entries(tiersSection)) {
-    const tier = asTier(v, defaultTier);
+    // A misspelled tier value is held, even when default_tier is an auto tier.
+    const tier = asTier(v, 'external');
     if (k.endsWith('*')) prefixes.push({ prefix: k.slice(0, -1), tier });
     else tiers.set(k, tier);
   }

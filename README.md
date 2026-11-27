@@ -188,7 +188,8 @@ A small TOML file (see `examples/capabilities.toml`):
   missing or not a valid tier, it falls back to `external`, so unlisted tools are held
   for approval.
 - `[tiers]` — exact tool name → tier, plus trailing-`*` **prefix globs**
-  (e.g. `"mcp__messaging__*" = "external"`).
+  (e.g. `"mcp__messaging__*" = "external"`). A value that is not a valid tier falls back to
+  `external`, whatever `default_tier` says.
 - `[bash]` — JS-regex command patterns that **elevate** Bash above its base tier
   (and double as the denylist). Highest match wins; patterns only ever raise.
 - `[guard].files` — project-relative paths whose edit is `irreversible`; point this

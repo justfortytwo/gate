@@ -197,6 +197,16 @@ default_tier = "trusted"
     expect(d.permission).toBe('defer');
   });
 
+  it('a misspelled [tiers] value defers even when default_tier is an auto tier', async () => {
+    const g = parseManifest(`
+default_tier = "internal"
+[tiers]
+"mcp__messaging__*" = "extrenal"
+`);
+    const d = await decide(g, { toolName: 'mcp__messaging__send', toolInput: {}, toolUseId: 'tu_typo' }, { store });
+    expect(d.permission).toBe('defer');
+  });
+
   it('a denied record denies on re-fire', async () => {
     expect((await decide(m, ext, { store })).permission).toBe('defer');
     await store.setDecisionByToolUseId('tu_d', 'denied');
