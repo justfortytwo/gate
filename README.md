@@ -184,7 +184,9 @@ bump signals a contract break to every consumer).
 
 A small TOML file (see `examples/capabilities.toml`):
 
-- `default_tier` — tier for any tool not listed (recommended: `external`).
+- `default_tier` — tier for any tool not listed (recommended: `external`). If it is
+  missing or not a valid tier, it falls back to `external`, so unlisted tools are held
+  for approval.
 - `[tiers]` — exact tool name → tier, plus trailing-`*` **prefix globs**
   (e.g. `"mcp__messaging__*" = "external"`).
 - `[bash]` — JS-regex command patterns that **elevate** Bash above its base tier

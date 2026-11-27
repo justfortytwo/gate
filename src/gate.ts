@@ -151,7 +151,8 @@ function asTier(v: unknown, fallback: Tier): Tier {
 
 export function parseManifest(src: string): Manifest {
   const o = parseToml(src);
-  const defaultTier = asTier(o['default_tier'], 'internal');
+  // Fail closed: a missing or invalid default_tier holds unlisted tools for approval.
+  const defaultTier = asTier(o['default_tier'], 'external');
   const tiers = new Map<string, Tier>();
   const prefixes: Array<{ prefix: string; tier: Tier }> = [];
   const tiersSection = (o['tiers'] ?? {}) as Record<string, unknown>;
