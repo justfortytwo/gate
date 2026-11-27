@@ -176,6 +176,27 @@ outside_project = true
 describe('decide — additional paths', () => {
   const ext = { toolName: 'mcp__messaging__send', toolInput: { to: 'x' }, toolUseId: 'tu_d' };
 
+  it('a manifest without default_tier defers an unlisted tool', async () => {
+    const g = parseManifest(`
+[tiers]
+"Read" = "read"
+`);
+    expect(g.defaultTier).toBe('external');
+    const d = await decide(g, { toolName: 'mcp__unlisted__run', toolInput: {}, toolUseId: 'tu_nd' }, { store });
+    expect(d.permission).toBe('defer');
+  });
+
+  it('an invalid default_tier defers an unlisted tool', async () => {
+    const g = parseManifest(`
+default_tier = "trusted"
+[tiers]
+"Read" = "read"
+`);
+    expect(g.defaultTier).toBe('external');
+    const d = await decide(g, { toolName: 'mcp__unlisted__run', toolInput: {}, toolUseId: 'tu_inv' }, { store });
+    expect(d.permission).toBe('defer');
+  });
+
   it('a denied record denies on re-fire', async () => {
     expect((await decide(m, ext, { store })).permission).toBe('defer');
     await store.setDecisionByToolUseId('tu_d', 'denied');
